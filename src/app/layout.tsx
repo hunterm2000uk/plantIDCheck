@@ -1,6 +1,6 @@
 import type {Metadata} from 'next';
 import { GeistSans } from 'geist/font/sans';
-import { GeistMono } from 'geist/font/mono';
+// GeistMono import removed as it's not available in the geist package
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"; // Import Toaster
 
@@ -16,7 +16,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${GeistSans.variable} ${GeistMono.variable} antialiased font-sans`}> {/* Use font variable */}
+      {/* Apply GeistSans variable, remove GeistMono as it's unavailable */}
+      <body className={`${GeistSans.variable} antialiased font-sans`}>
         {children}
         <Toaster /> {/* Add Toaster */}
       </body>
