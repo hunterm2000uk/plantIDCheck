@@ -1,5 +1,7 @@
 /**
  * Represents detailed information about a plant.
+ * This interface is kept for potential future use or reference,
+ * but is currently not actively used by the identifyPlant flow.
  */
 export interface PlantInfo {
   /**
@@ -16,18 +18,6 @@ export interface PlantInfo {
   careInstructions: string;
 }
 
-/**
- * Asynchronously retrieves plant information based on the plant's name.
- *
- * @param plantName The name of the plant to retrieve information for.
- * @returns A promise that resolves to a PlantInfo object containing details about the plant.
- */
-export async function getPlantInfo(plantName: string): Promise<PlantInfo> {
-  // TODO: Implement this by calling an API.
-
-  return {
-    commonName: plantName,
-    isWeed: false,
-    careInstructions: 'Water regularly and provide sunlight.',
-  };
-}
+// Removed the getPlantInfo function as the AI flow now handles data retrieval directly.
+// The AI prompt combines identification, weed classification, health assessment,
+// proposed actions, and general care instructions based on the image analysis.

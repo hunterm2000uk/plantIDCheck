@@ -1,15 +1,16 @@
 'use server';
 
 /**
- * @fileOverview An AI agent that identifies a plant from an image and provides information about it.
+ * @fileOverview An AI agent that identifies a plant from an image, assesses its health,
+ * determines if it's a weed, and provides care instructions and proposed actions.
  *
- * - identifyPlant - A function that handles the plant identification process.
+ * - identifyPlant - A function that handles the plant analysis process.
  * - IdentifyPlantInput - The input type for the identifyPlant function.
  * - IdentifyPlantOutput - The return type for the identifyPlant function.
  */
 
 import {ai} from '@/ai/ai-instance';
-import {getPlantInfo, PlantInfo} from '@/services/plant-id';
+// Removed getPlantInfo import as it's no longer used.
 import {z} from 'genkit';
 
 const IdentifyPlantInputSchema = z.object({
@@ -21,90 +22,71 @@ const IdentifyPlantInputSchema = z.object({
 });
 export type IdentifyPlantInput = z.infer<typeof IdentifyPlantInputSchema>;
 
-// Updated Output Schema to match component expectations (direct object, not nested)
+// Updated Output Schema to include health and actions
 const IdentifyPlantOutputSchema = z.object({
-    commonName: z.string().describe('The common name of the identified plant.'),
-    isWeed: z.boolean().describe('Whether the plant is classified as a weed.'),
-    careInstructions: z.string().describe('Instructions on how to care for the plant.'),
+    commonName: z.string().describe('The common name of the identified plant. Respond with "Unknown" if not identifiable.'),
+    isWeed: z.boolean().describe('Whether the plant is generally classified as a weed.'),
+    careInstructions: z.string().describe('General instructions on how to care for this type of plant.'),
+    healthStatus: z.string().describe('An assessment of the plant\'s health based on the image (e.g., Healthy, Needs Water, Diseased, Pest Infestation).'),
+    proposedActions: z.string().describe('Specific actions to take based on the visual health assessment to improve the plant\'s condition. Provide actionable advice.')
 });
 // Output type directly maps to the schema
 export type IdentifyPlantOutput = z.infer<typeof IdentifyPlantOutputSchema>;
 
+// The wrapper function now returns the full output or null, wrapped in the expected structure.
 export async function identifyPlant(input: IdentifyPlantInput): Promise<{plantIdentification: IdentifyPlantOutput | null}> {
   const result = await identifyPlantFlow(input);
-  // Wrap the result in the expected structure for consistency, even if slightly redundant now
   return { plantIdentification: result };
 }
 
 
-const plantIdentificationPrompt = ai.definePrompt({
-  name: 'plantIdentificationPrompt',
+// Renamed prompt and updated input/output/prompt text
+const plantAnalysisPrompt = ai.definePrompt({
+  name: 'plantAnalysisPrompt',
   input: {
-    schema: z.object({
-      photoDataUri: z
-        .string()
-        .describe(
-          "A photo of a plant, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
-        ),
-    }),
+    schema: IdentifyPlantInputSchema, // Input remains the same (image)
   },
   output: {
-    schema: z.object({
-      plantName: z.string().describe('The identified name of the plant.'),
-    }),
+    schema: IdentifyPlantOutputSchema, // Output now includes all fields
   },
-  prompt: `You are an expert botanist. Please identify the plant in the following image.
+  prompt: `You are an expert botanist and plant pathologist. Analyze the plant in the following image.
 
   Photo: {{media url=photoDataUri}}
-  \n  Respond with just the plant name. If you cannot identify the plant from the image, respond with "Unknown".`,
+
+  Based on the image and your knowledge:
+  1.  **Identify the plant:** Provide its common name. If you cannot identify it, respond with "Unknown" for the commonName and skip the other points.
+  2.  **Classify:** Is this type of plant generally considered a weed?
+  3.  **Assess Health:** Evaluate the plant's health based *only* on what you see in the image. Describe its condition (e.g., Healthy, Needs Water, Yellowing Leaves, Possible Pest Damage, Fungal Spots, etc.).
+  4.  **Propose Actions:** Suggest specific, actionable steps the user can take *based on your visual health assessment* to improve the plant's condition. If the plant looks healthy, suggest routine care actions.
+  5.  **Provide General Care:** Give brief, general care instructions suitable for this type of plant (assuming it's healthy).
+
+  Respond *only* with a JSON object matching the output schema.`,
 });
 
 const identifyPlantFlow = ai.defineFlow<
   typeof IdentifyPlantInputSchema,
-  // Output schema of the flow itself is now the direct plant info
   typeof IdentifyPlantOutputSchema | null // Allow null if identification fails
 >({
   name: 'identifyPlantFlow',
   inputSchema: IdentifyPlantInputSchema,
-  // Output schema can be the plant info or null
-  outputSchema: IdentifyPlantOutputSchema.nullable(),
+  outputSchema: IdentifyPlantOutputSchema.nullable(), // Output can be the full plant info or null
 },
 async input => {
-  let plantName: string | undefined;
   try {
-    const {output} = await plantIdentificationPrompt(input);
-    plantName = output?.plantName;
+    const {output} = await plantAnalysisPrompt(input);
+
+    // Check if the prompt returned a valid output and identified the plant
+    if (!output || !output.commonName || output.commonName.toLowerCase() === 'unknown') {
+      console.warn('Could not identify plant or prompt returned Unknown.');
+      return null; // Return null if identification failed or output is missing
+    }
+
+    // Return the full output object from the prompt
+    return output;
+
   } catch (error) {
-      console.error("Error during plant identification prompt:", error);
-      // Don't throw here, allow fallback or null return
-      plantName = "Unknown";
+      console.error("Error during plant analysis prompt:", error);
+      // Return null in case of any error during the AI call
+      return null;
   }
-
-
-  if (!plantName || plantName.toLowerCase() === 'unknown') {
-    console.warn('Could not identify plant or prompt returned Unknown.');
-    // Return null according to the updated output schema
-    return null;
-  }
-
-  try {
-      const plantInfo: PlantInfo = await getPlantInfo(plantName);
-
-      // Return the direct plant info object
-      return {
-        commonName: plantInfo.commonName,
-        isWeed: plantInfo.isWeed,
-        careInstructions: plantInfo.careInstructions,
-      };
-  } catch (error) {
-      console.error(`Error fetching plant info for ${plantName}:`, error);
-      // If getPlantInfo fails, still return null or a default structure
-       return {
-        commonName: plantName, // Use the identified name as fallback
-        isWeed: false, // Default assumption
-        careInstructions: "Could not retrieve detailed care instructions.",
-      };
-  }
-
 });
-
