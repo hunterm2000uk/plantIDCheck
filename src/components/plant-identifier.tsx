@@ -9,8 +9,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, Upload, Camera, Leaf, Sun, Droplets, AlertCircle, XCircle } from "lucide-react";
+import { Loader2, Upload, Camera, Leaf, Sun, Droplets, AlertCircle, XCircle, Heart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+// Type definition for the plant identification result - ensure it's exportable if needed elsewhere
+// Note: IdentifyPlantOutput already includes commonName, isWeed, careInstructions
+type PlantResult = IdentifyPlantOutput;
+
+// LocalStorage key
+const FAVORITES_STORAGE_KEY = "plantIdentifierFavorites";
 
 // Helper function to read file as Data URI
 const readFileAsDataURI = (file: File): Promise<string> => {
@@ -26,16 +33,38 @@ export default function PlantIdentifier() {
   const [imagePreview, setImagePreview] = React.useState<string | null>(null);
   const [imageDataUri, setImageDataUri] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
-  const [result, setResult] = React.useState<IdentifyPlantOutput["plantIdentification"] | null>(null);
+  const [result, setResult] = React.useState<PlantResult | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [favourites, setFavourites] = React.useState<PlantResult[]>([]);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
+  // Load favourites from localStorage on initial mount (client-side only)
+  React.useEffect(() => {
+    try {
+      const storedFavourites = localStorage.getItem(FAVORITES_STORAGE_KEY);
+      if (storedFavourites) {
+        setFavourites(JSON.parse(storedFavourites));
+      }
+    } catch (err) {
+      console.error("Error loading favourites from localStorage:", err);
+      // Handle potential parsing errors or if localStorage is unavailable
+    }
+  }, []);
+
+  // Save favourites to localStorage whenever the list changes
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favourites));
+    } catch (err) {
+      console.error("Error saving favourites to localStorage:", err);
+    }
+  }, [favourites]);
+
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      // Basic validation for image types
       if (!file.type.startsWith('image/')) {
         setError("Please upload a valid image file (e.g., JPG, PNG, WEBP).");
         setImagePreview(null);
@@ -43,10 +72,9 @@ export default function PlantIdentifier() {
         setResult(null);
         return;
       }
-      // Reset state
       setError(null);
       setResult(null);
-      setIsLoading(true); // Show loading immediately
+      setIsLoading(true);
 
       try {
         const dataUri = await readFileAsDataURI(file);
@@ -69,12 +97,14 @@ export default function PlantIdentifier() {
       if (identificationResult?.plantIdentification) {
         setResult(identificationResult.plantIdentification);
       } else {
+         // Use the structure expected by the component even if partially identified or failed
+        setResult(null); // Clear result if identification failed entirely
         setError("Could not identify the plant. Please try a clearer image.");
       }
     } catch (err) {
       console.error("AI Identification error:", err);
       setError("An error occurred during plant identification. Please try again.");
-      setResult(null); // Clear previous result on error
+      setResult(null);
     } finally {
       setIsLoading(false);
     }
@@ -94,7 +124,6 @@ export default function PlantIdentifier() {
     setResult(null);
     setError(null);
     setIsLoading(false);
-    // Reset file input values if they exist
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (cameraInputRef.current) cameraInputRef.current.value = "";
      toast({
@@ -103,6 +132,35 @@ export default function PlantIdentifier() {
       });
   }
 
+  const handleToggleFavourite = (plant: PlantResult | null) => {
+    if (!plant || !plant.commonName) return; // Need a unique identifier like commonName
+
+    const isFavourite = favourites.some(fav => fav.commonName === plant.commonName);
+
+    if (isFavourite) {
+      // Remove from favourites
+      setFavourites(prev => prev.filter(fav => fav.commonName !== plant.commonName));
+      toast({
+        title: "Removed from Favourites",
+        description: `${plant.commonName} removed from your favourites.`,
+      });
+    } else {
+      // Add to favourites
+      setFavourites(prev => [...prev, plant]);
+      toast({
+        title: "Added to Favourites",
+        description: `${plant.commonName} added to your favourites.`,
+        variant: "default", // Optional: use default style for success
+      });
+    }
+  };
+
+   // Check if the current result is a favourite
+   const isCurrentResultFavourite = React.useMemo(() => {
+     if (!result || !result.commonName) return false;
+     return favourites.some(fav => fav.commonName === result.commonName);
+   }, [result, favourites]);
+
   return (
     <Card className="w-full max-w-2xl shadow-lg rounded-lg overflow-hidden">
       <CardHeader className="bg-primary text-primary-foreground p-4 md:p-6">
@@ -110,7 +168,7 @@ export default function PlantIdentifier() {
           <Leaf className="h-6 w-6 md:h-8 md:w-8" /> Plant Identifier
         </CardTitle>
         <CardDescription className="text-primary-foreground/90 mt-1">
-          Upload an image or use your camera to identify a plant.
+          Upload an image or use your camera to identify a plant. See favourites below.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-4 md:p-6 space-y-4">
@@ -136,7 +194,7 @@ export default function PlantIdentifier() {
             id="plant-camera-capture"
             type="file"
             accept="image/*"
-            capture="environment" // Prefer back camera
+            capture="environment"
             onChange={handleFileChange}
             ref={cameraInputRef}
             className="hidden"
@@ -180,17 +238,29 @@ export default function PlantIdentifier() {
           </Alert>
         )}
 
+        {/* Identification Result Card */}
         {result && !isLoading && (
           <Card className="mt-6 border-primary shadow-md">
-            <CardHeader>
-              <CardTitle className="text-xl md:text-2xl flex items-center justify-between">
-                {result.commonName || "Plant Identified"}
-                <Badge variant={result.isWeed ? "destructive" : "secondary"} className="ml-2">
-                  {result.isWeed ? "Weed" : "Not a Weed"}
-                </Badge>
-              </CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <div className="flex-1">
+                    <CardTitle className="text-xl md:text-2xl flex items-center gap-2">
+                        {result.commonName || "Plant Identified"}
+                        <Badge variant={result.isWeed ? "destructive" : "secondary"} className="ml-2">
+                        {result.isWeed ? "Weed" : "Not a Weed"}
+                        </Badge>
+                    </CardTitle>
+                </div>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleToggleFavourite(result)}
+                    aria-label={isCurrentResultFavourite ? "Remove from Favourites" : "Add to Favourites"}
+                    className="text-accent hover:text-accent/80"
+                >
+                    <Heart className={`h-6 w-6 ${isCurrentResultFavourite ? 'fill-current text-destructive' : 'stroke-current'}`} />
+                </Button>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm md:text-base">
+            <CardContent className="space-y-3 text-sm md:text-base pt-4">
               <div className="flex items-start gap-2">
                 <Sun className="h-5 w-5 text-accent flex-shrink-0 mt-1" />
                 <div>
@@ -198,7 +268,6 @@ export default function PlantIdentifier() {
                    <p className="text-muted-foreground whitespace-pre-wrap">{result.careInstructions || "No specific care instructions provided."}</p>
                 </div>
               </div>
-              {/* Example of adding more icons - could dynamically parse instructions */}
               {result.careInstructions?.toLowerCase().includes("water") && (
                  <div className="flex items-start gap-2">
                    <Droplets className="h-5 w-5 text-accent flex-shrink-0 mt-1" />
@@ -206,18 +275,45 @@ export default function PlantIdentifier() {
                  </div>
               )}
             </CardContent>
-             {/* Optionally add a footer */}
-            {/* <CardFooter className="text-xs text-muted-foreground">
-              Identification based on AI analysis. Always consult with a local expert for critical decisions.
-            </CardFooter> */}
           </Card>
         )}
+
+         {/* Placeholder when no image/result */}
          {!imagePreview && !isLoading && !error && !result && (
             <div className="text-center text-muted-foreground py-10 border-2 border-dashed border-border rounded-lg">
                 <Leaf className="mx-auto h-12 w-12 mb-2" />
                 <p>Upload an image or use the camera to start identifying your plant!</p>
             </div>
         )}
+
+         {/* Display Favourites Section */}
+         {favourites.length > 0 && (
+            <Card className="mt-6 border-accent">
+                <CardHeader>
+                    <CardTitle className="text-xl md:text-2xl flex items-center gap-2">
+                        <Heart className="h-6 w-6 text-destructive fill-current"/> Your Favourite Plants
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <ul className="space-y-2">
+                        {favourites.map((fav, index) => (
+                            <li key={`${fav.commonName}-${index}`} className="flex justify-between items-center p-2 border-b last:border-b-0">
+                                <span className="font-medium">{fav.commonName}</span>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleToggleFavourite(fav)}
+                                    aria-label={`Remove ${fav.commonName} from Favourites`}
+                                    className="text-muted-foreground hover:text-destructive"
+                                >
+                                    <XCircle className="h-5 w-5" />
+                                </Button>
+                            </li>
+                        ))}
+                    </ul>
+                </CardContent>
+            </Card>
+         )}
 
       </CardContent>
     </Card>
