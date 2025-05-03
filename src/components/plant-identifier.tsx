@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import NextImage from 'next/image'; // Renamed import to avoid conflict
+import NextImage from 'next/image'; // Use alias to avoid conflict with window.Image
 import {
   identifyPlant,
   type IdentifyPlantOutput,
@@ -37,6 +37,10 @@ import {
   Flower2, // Icon for Flowering Info
   Scissors, // Icon for Pruning Info
   Info, // Icon for selecting favourite
+  Apple, // Icon for Edible Fruit
+  CalendarDays, // Icon for Seasons/Time
+  ClipboardCheck, // Icon for Care/Instructions
+  Grape, // Icon for Harvest
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -288,6 +292,7 @@ export default function PlantIdentifier() {
       });
        // If the currently displayed result was the one removed, clear it
       if (result?.commonName === plant.commonName) {
+        // Don't clear imagePreview or imageDataUri, just the result display
         setResult(null);
       }
     } else {
@@ -306,6 +311,9 @@ export default function PlantIdentifier() {
     setResult(favPlant); // Display the selected favourite's details
     setError(null); // Clear any previous error
     setIsLoading(false); // Ensure loading is off
+    // Clear the image preview and data URI as we are loading from favourites
+    setImagePreview(null);
+    setImageDataUri(null);
     // Optional: scroll to the results card?
     // const resultCard = document.getElementById('plant-result-card');
     // resultCard?.scrollIntoView({ behavior: 'smooth' });
@@ -434,6 +442,12 @@ export default function PlantIdentifier() {
                   >
                     {result.isWeed ? 'Weed' : 'Not a Weed'}
                   </Badge>
+                  {/* Optional: Badge for edible fruit */}
+                   {result.isEdibleFruit === true && (
+                     <Badge variant="secondary" className="ml-2 whitespace-nowrap bg-accent text-accent-foreground">
+                       <Apple className="mr-1 h-3 w-3" /> Edible Fruit
+                     </Badge>
+                   )}
                 </CardTitle>
               </div>
               <Button
@@ -485,7 +499,8 @@ export default function PlantIdentifier() {
                  )}
                </div>
 
-              <Separator className="my-4" />
+              {/* Conditionally render separator if health/actions exist */}
+              {(result.healthStatus || result.proposedActions) && <Separator className="my-4" />}
 
               {/* Botanical Details Section */}
               <div className="space-y-3">
@@ -531,8 +546,47 @@ export default function PlantIdentifier() {
                  )}
               </div>
 
+               {/* Conditionally render separator if botanical details exist */}
+              {(result.height || result.spread || result.growthRate || result.floweringInfo || result.pruningInfo) && <Separator className="my-4" />}
 
-              <Separator className="my-4" />
+
+              {/* Edible Fruit Section - Conditionally Rendered */}
+              {result.isEdibleFruit === true && (
+                  <div className="space-y-3">
+                    <h4 className="text-lg font-medium mb-2 flex items-center gap-2">
+                        <Apple className="h-5 w-5 text-accent" /> Edible Fruit Information
+                    </h4>
+                    {result.fruitGrowthSeason && (
+                        <div className="flex items-start gap-3 p-3 bg-secondary/30 rounded-md border border-border">
+                            <CalendarDays className="h-5 w-5 text-accent flex-shrink-0 mt-1" />
+                            <div>
+                                <h5 className="font-medium">Fruit Growth Season:</h5>
+                                <p className="text-muted-foreground">{result.fruitGrowthSeason}</p>
+                            </div>
+                        </div>
+                    )}
+                    {result.fruitCareInstructions && (
+                        <div className="flex items-start gap-3 p-3 bg-secondary/30 rounded-md border border-border">
+                            <ClipboardCheck className="h-5 w-5 text-accent flex-shrink-0 mt-1" />
+                            <div>
+                                <h5 className="font-medium">Fruit Care:</h5>
+                                <p className="text-muted-foreground whitespace-pre-wrap">{result.fruitCareInstructions}</p>
+                            </div>
+                        </div>
+                    )}
+                    {result.fruitHarvestTime && (
+                        <div className="flex items-start gap-3 p-3 bg-secondary/30 rounded-md border border-border">
+                            <Grape className="h-5 w-5 text-accent flex-shrink-0 mt-1" />
+                            <div>
+                                <h5 className="font-medium">Harvest Time:</h5>
+                                <p className="text-muted-foreground">{result.fruitHarvestTime}</p>
+                            </div>
+                        </div>
+                    )}
+                     <Separator className="my-4" /> {/* Separator after fruit section */}
+                  </div>
+              )}
+
 
               {/* General Care Instructions Section */}
               <div className="flex items-start gap-3 p-3 bg-secondary/50 rounded-md border border-border">
