@@ -59,7 +59,8 @@ const resizeImage = (
   quality: number
 ): Promise<string> => {
   return new Promise((resolve, reject) => {
-    const img = new window.Image(); 
+    // Explicitly use window.Image to avoid potential naming conflicts
+    const img = new window.Image();
     img.onload = () => {
       const canvas = document.createElement('canvas');
       let width = img.width;
@@ -74,16 +75,40 @@ const resizeImage = (
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext('2d');
-      ctx?.drawImage(img, 0, 0, width, height);
+      // Add null check for context
+      if (!ctx) {
+         reject(new Error("Could not get 2D context from canvas"));
+         return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
 
-      const dataURI = canvas.toDataURL('image/jpeg', quality);
-      resolve(dataURI);
+      try {
+        const dataURI = canvas.toDataURL('image/jpeg', quality);
+        // Clean up the object URL
+        URL.revokeObjectURL(img.src);
+        resolve(dataURI);
+      } catch (e) {
+        // Clean up the object URL even if toDataURL fails
+        URL.revokeObjectURL(img.src);
+        reject(e);
+      }
     };
-    img.onerror = (error) => reject(error); // Use the error object
-    img.src = URL.createObjectURL(file);
-  });
+    img.onerror = (error) => {
+      // Clean up the object URL on error
+      URL.revokeObjectURL(img.src);
+      reject(error); // Use the error object
+    };
 
+    // Add try-catch around createObjectURL
+    try {
+        // Create an object URL for the image file
+        img.src = URL.createObjectURL(file);
+    } catch (urlError) {
+        reject(urlError);
+    }
+  });
 };
+
 
 export default function PlantIdentifier() {
   const [imagePreview, setImagePreview] = React.useState<string | null>(null);
