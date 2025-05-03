@@ -46,7 +46,7 @@ const readFileAsDataURI = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
+    reader.onerror = (error) => reject(error); // Pass the actual error
     reader.readAsDataURL(file);
   });
 };
@@ -73,7 +73,7 @@ export default function PlantIdentifier() {
         setFavourites(parsedFavourites);
       }
     } catch (err) {
-      console.error('Error loading favourites from localStorage:', err);
+      console.error('Error loading favourites from localStorage:', err); // Log error loading favourites
     }
   }, []);
 
@@ -82,7 +82,7 @@ export default function PlantIdentifier() {
     try {
       localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favourites));
     } catch (err) {
-      console.error('Error saving favourites to localStorage:', err);
+      console.error('Error saving favourites to localStorage:', err); // Log error saving favourites
     }
   }, [favourites]);
 
@@ -98,19 +98,24 @@ export default function PlantIdentifier() {
         setResult(null);
         return;
       }
+      // Clear previous state before processing new file
       setError(null);
       setResult(null);
       setIsLoading(true);
+      setImagePreview(null);
+      setImageDataUri(null);
 
       try {
         const dataUri = await readFileAsDataURI(file);
-        setImagePreview(dataUri);
+        setImagePreview(dataUri); // Set preview only after successful read
         setImageDataUri(dataUri);
-        await identifyPlantAndUpdateState(dataUri);
+        await identifyPlantAndUpdateState(dataUri); // Proceed with identification
       } catch (err) {
-        console.error('Error processing file:', err);
-        setError('Failed to read or process the image.');
+        console.error('Error processing file:', err); // Log file reading error
+        // Display a specific error for file processing failure
+        setError(`Failed to read image: ${err instanceof Error ? err.message : 'Please try again.'}`);
         setIsLoading(false);
+        // Ensure image state is cleared on file read error
         setImagePreview(null);
         setImageDataUri(null);
       } finally {
@@ -123,26 +128,41 @@ export default function PlantIdentifier() {
   };
 
   const identifyPlantAndUpdateState = async (dataUri: string) => {
+    // Reset state specific to the result before making the API call
+    setResult(null);
+    setError(null); // Clear previous errors
+    setIsLoading(true); // Set loading state
+
     try {
       const identificationResult = await identifyPlant({
         photoDataUri: dataUri,
       });
+
+      // Case 1: Successful identification from AI
       if (identificationResult?.plantIdentification) {
         setResult(identificationResult.plantIdentification);
-      } else {
+        setError(null); // Explicitly clear error on success
+      }
+      // Case 2: AI call succeeded but returned null (couldn't identify)
+      else {
         setResult(null);
-        setError('Could not identify the plant. Please try a clearer image.');
+        // Provide a more specific message for identification failure
+        setError('Could not identify the plant. It might not be a plant or the image is unclear. Please try a different image.');
+        console.warn('AI analysis returned null or no plantIdentification.'); // Log warning
       }
     } catch (err) {
-      console.error('AI Identification error:', err);
+      // Case 3: Error during the AI identification call (network, API key, etc.)
+      console.error('AI Identification error:', err); // Log the detailed error object
+      // Display a user-friendly message including the error's message if available
       setError(
-        'An error occurred during plant identification. Please try again.'
+        `An error occurred during analysis: ${err instanceof Error ? err.message : 'Please check your connection and try again.'}`
       );
-      setResult(null);
+      setResult(null); // Ensure result is cleared on error
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Stop loading indicator regardless of outcome
     }
   };
+
 
   const triggerFileUpload = () => {
     fileInputRef.current?.click();
@@ -221,6 +241,7 @@ export default function PlantIdentifier() {
               variant="outline"
               onClick={triggerFileUpload}
               className="flex-1"
+              disabled={isLoading} // Disable while loading
             >
               <Upload className="mr-2" /> Upload Image
             </Button>
@@ -228,6 +249,7 @@ export default function PlantIdentifier() {
               variant="outline"
               onClick={triggerCameraUpload}
               className="flex-1"
+              disabled={isLoading} // Disable while loading
             >
               <Camera className="mr-2" /> Use Camera
             </Button>
@@ -239,6 +261,7 @@ export default function PlantIdentifier() {
             onChange={handleFileChange}
             ref={fileInputRef}
             className="hidden"
+            disabled={isLoading}
           />
           <Input
             id="plant-camera-capture"
@@ -248,6 +271,7 @@ export default function PlantIdentifier() {
             onChange={handleFileChange}
             ref={cameraInputRef}
             className="hidden"
+            disabled={isLoading}
           />
         </div>
 
@@ -261,15 +285,18 @@ export default function PlantIdentifier() {
               className="rounded-md object-contain max-h-80 w-full"
               data-ai-hint="plant leaf flower"
             />
-            <Button
-              variant="destructive"
-              size="icon"
-              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={clearImage}
-              aria-label="Clear image"
-            >
-              <XCircle className="h-5 w-5" />
-            </Button>
+             {!isLoading && ( // Only show clear button if not loading
+               <Button
+                 variant="destructive"
+                 size="icon"
+                 className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                 onClick={clearImage}
+                 aria-label="Clear image"
+                 disabled={isLoading} // Disable clear while loading
+               >
+                 <XCircle className="h-5 w-5" />
+               </Button>
+             )}
           </div>
         )}
 
@@ -280,16 +307,17 @@ export default function PlantIdentifier() {
           </div>
         )}
 
-        {error && (
+        {error && !isLoading && ( // Display error only when not loading
           <Alert variant="destructive" className="mt-4">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Error</AlertTitle>
+            {/* Display the detailed error message */}
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
         {/* Identification Result Card */}
-        {result && !isLoading && (
+        {result && !isLoading && !error && ( // Display result only on success (no loading, no error)
           <Card className="mt-6 border-primary shadow-md">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div className="flex-1">
@@ -377,7 +405,7 @@ export default function PlantIdentifier() {
           </Card>
         )}
 
-        {/* Placeholder when no image/result */}
+        {/* Placeholder when no image/result/error */}
         {!imagePreview && !isLoading && !error && !result && (
           <div className="text-center text-muted-foreground py-10 border-2 border-dashed border-border rounded-lg">
             <Leaf className="mx-auto h-12 w-12 mb-2" />

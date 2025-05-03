@@ -36,6 +36,7 @@ export type IdentifyPlantOutput = z.infer<typeof IdentifyPlantOutputSchema>;
 // The wrapper function now returns the full output or null, wrapped in the expected structure.
 export async function identifyPlant(input: IdentifyPlantInput): Promise<{plantIdentification: IdentifyPlantOutput | null}> {
   const result = await identifyPlantFlow(input);
+  // Return null directly within the structure if the flow returns null
   return { plantIdentification: result };
 }
 
@@ -60,7 +61,7 @@ const plantAnalysisPrompt = ai.definePrompt({
   4.  **Propose Actions:** Suggest specific, actionable steps the user can take *based on your visual health assessment* to improve the plant's condition. If the plant looks healthy, suggest routine care actions.
   5.  **Provide General Care:** Give brief, general care instructions suitable for this type of plant (assuming it's healthy).
 
-  Respond *only* with a JSON object matching the output schema.`,
+  Respond *only* with a JSON object matching the output schema. Ensure the JSON is valid.`, // Added reminder for valid JSON
 });
 
 const identifyPlantFlow = ai.defineFlow<
@@ -76,16 +77,30 @@ async input => {
     const {output} = await plantAnalysisPrompt(input);
 
     // Check if the prompt returned a valid output and identified the plant
-    if (!output || !output.commonName || output.commonName.toLowerCase() === 'unknown') {
-      console.warn('Could not identify plant or prompt returned Unknown.');
-      return null; // Return null if identification failed or output is missing
+    // Use optional chaining and nullish coalescing for safer access
+    const commonName = output?.commonName?.trim().toLowerCase();
+    if (!output || !commonName || commonName === 'unknown') {
+      console.warn('Could not identify plant or prompt returned "Unknown". Output:', output); // Log the actual output for debugging
+      return null; // Return null if identification failed or output is missing/invalid
     }
 
-    // Return the full output object from the prompt
-    return output;
+    // Validate if the output structure matches the schema (optional but good practice)
+    const validation = IdentifyPlantOutputSchema.safeParse(output);
+    if (!validation.success) {
+        console.error("AI output validation failed:", validation.error.errors); // Log Zod validation errors
+        return null; // Return null if output doesn't match schema
+    }
+
+    // Return the validated output object from the prompt
+    return validation.data;
 
   } catch (error) {
-      console.error("Error during plant analysis prompt:", error);
+      // Log the specific error encountered during the AI call
+      console.error("Error during plant analysis prompt execution:", error);
+      // Consider logging specifics like error.message or error.stack if available
+      if (error instanceof Error) {
+        console.error("Error details:", error.message, error.stack);
+      }
       // Return null in case of any error during the AI call
       return null;
   }
