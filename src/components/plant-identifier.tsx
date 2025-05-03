@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import NextImage from 'next/image'; // Renamed import
+import NextImage from 'next/image'; // Renamed import to avoid conflict
 import {
   identifyPlant,
   type IdentifyPlantOutput,
@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Separator } from "@/components/ui/separator";
 import {
   Loader2,
   Upload,
@@ -31,11 +32,15 @@ import {
   Heart,
   HeartPulse, // Icon for Health Status
   Sparkles, // Icon for Proposed Actions
+  Ruler, // Icon for Height/Spread
+  TrendingUp, // Icon for Growth Rate
+  Flower2, // Icon for Flowering Info
+  Scissors, // Icon for Pruning Info
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 // Type definition for the plant identification result
-// IdentifyPlantOutput now includes healthStatus and proposedActions
+// Includes all fields from IdentifyPlantOutput
 type PlantResult = IdentifyPlantOutput;
 
 // LocalStorage key
@@ -281,7 +286,7 @@ export default function PlantIdentifier() {
         description: `${plant.commonName} removed from your favourites.`,
       });
     } else {
-      // Add the full plant result (including health/actions at time of favouriting)
+      // Add the full plant result (including all details at time of favouriting)
       setFavourites((prev) => [...prev, plant]);
       toast({
         title: 'Added to Favourites',
@@ -301,10 +306,10 @@ export default function PlantIdentifier() {
     <Card className="w-full max-w-2xl shadow-lg rounded-lg overflow-hidden">
       <CardHeader className="bg-primary text-primary-foreground p-4 md:p-6">
         <CardTitle className="text-2xl md:text-3xl font-semibold flex items-center gap-2">
-          <Leaf className="h-6 w-6 md:h-8 md:w-8" /> Plant Identifier & Health Check
+          <Leaf className="h-6 w-6 md:h-8 md:w-8" /> Plant Identifier & Care Guide
         </CardTitle>
         <CardDescription className="text-primary-foreground/90 mt-1">
-          Upload an image or use your camera to identify a plant, check its health, and get care tips.
+          Upload an image or use your camera to identify a plant, check its health, and get detailed care tips.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-4 md:p-6 space-y-4">
@@ -432,31 +437,82 @@ export default function PlantIdentifier() {
               </Button>
             </CardHeader>
             <CardContent className="space-y-4 text-sm md:text-base pt-4">
-              {/* Health Status Section */}
-               {result.healthStatus && (
-                 <div className="flex items-start gap-3 p-3 bg-secondary/50 rounded-md border border-border">
-                   <HeartPulse className="h-5 w-5 text-accent flex-shrink-0 mt-1" />
-                   <div>
-                     <h4 className="font-medium">Health Status:</h4>
-                     <p className="text-muted-foreground">
-                       {result.healthStatus}
-                     </p>
+              {/* Health and Actions Section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 {/* Health Status */}
+                 {result.healthStatus && (
+                   <div className="flex items-start gap-3 p-3 bg-secondary/50 rounded-md border border-border">
+                     <HeartPulse className="h-5 w-5 text-accent flex-shrink-0 mt-1" />
+                     <div>
+                       <h4 className="font-medium">Health Status:</h4>
+                       <p className="text-muted-foreground">
+                         {result.healthStatus}
+                       </p>
+                     </div>
                    </div>
-                 </div>
-               )}
+                 )}
+                 {/* Proposed Actions */}
+                 {result.proposedActions && (
+                   <div className="flex items-start gap-3 p-3 bg-secondary/50 rounded-md border border-border">
+                     <Sparkles className="h-5 w-5 text-accent flex-shrink-0 mt-1" />
+                     <div>
+                       <h4 className="font-medium">Proposed Actions:</h4>
+                       <p className="text-muted-foreground whitespace-pre-wrap">
+                         {result.proposedActions}
+                       </p>
+                     </div>
+                   </div>
+                 )}
+               </div>
 
-               {/* Proposed Actions Section */}
-               {result.proposedActions && (
-                 <div className="flex items-start gap-3 p-3 bg-secondary/50 rounded-md border border-border">
-                   <Sparkles className="h-5 w-5 text-accent flex-shrink-0 mt-1" />
-                   <div>
-                     <h4 className="font-medium">Proposed Actions:</h4>
-                     <p className="text-muted-foreground whitespace-pre-wrap">
-                       {result.proposedActions}
-                     </p>
-                   </div>
+              <Separator className="my-4" />
+
+              {/* Botanical Details Section */}
+              <div className="space-y-3">
+                 <h4 className="text-lg font-medium mb-2">Botanical Details</h4>
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                   {/* Height & Spread */}
+                   {(result.height || result.spread) && (
+                     <div className="flex items-start gap-2 p-2 bg-secondary/30 rounded">
+                       <Ruler className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                       <div>
+                         {result.height && <p><strong>Height:</strong> {result.height}</p>}
+                         {result.spread && <p><strong>Spread:</strong> {result.spread}</p>}
+                       </div>
+                     </div>
+                   )}
+                   {/* Growth Rate */}
+                   {result.growthRate && (
+                     <div className="flex items-start gap-2 p-2 bg-secondary/30 rounded">
+                       <TrendingUp className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                       <p><strong>Growth Rate:</strong> {result.growthRate}</p>
+                     </div>
+                   )}
                  </div>
-               )}
+                 {/* Flowering Info */}
+                 {result.floweringInfo && (
+                    <div className="flex items-start gap-3 p-3 bg-secondary/30 rounded-md border border-border">
+                       <Flower2 className="h-5 w-5 text-accent flex-shrink-0 mt-1" />
+                       <div>
+                         <h5 className="font-medium">Flowering:</h5>
+                         <p className="text-muted-foreground">{result.floweringInfo}</p>
+                       </div>
+                    </div>
+                 )}
+                 {/* Pruning Info */}
+                 {result.pruningInfo && (
+                    <div className="flex items-start gap-3 p-3 bg-secondary/30 rounded-md border border-border">
+                       <Scissors className="h-5 w-5 text-accent flex-shrink-0 mt-1" />
+                       <div>
+                         <h5 className="font-medium">Pruning:</h5>
+                         <p className="text-muted-foreground whitespace-pre-wrap">{result.pruningInfo}</p>
+                       </div>
+                    </div>
+                 )}
+              </div>
+
+
+              <Separator className="my-4" />
 
               {/* General Care Instructions Section */}
               <div className="flex items-start gap-3 p-3 bg-secondary/50 rounded-md border border-border">
