@@ -36,6 +36,7 @@ import {
   TrendingUp, // Icon for Growth Rate
   Flower2, // Icon for Flowering Info
   Scissors, // Icon for Pruning Info
+  Info, // Icon for selecting favourite
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -285,6 +286,10 @@ export default function PlantIdentifier() {
         title: 'Removed from Favourites',
         description: `${plant.commonName} removed from your favourites.`,
       });
+       // If the currently displayed result was the one removed, clear it
+      if (result?.commonName === plant.commonName) {
+        setResult(null);
+      }
     } else {
       // Add the full plant result (including all details at time of favouriting)
       setFavourites((prev) => [...prev, plant]);
@@ -295,6 +300,21 @@ export default function PlantIdentifier() {
       });
     }
   };
+
+  // Handler for selecting a favourite plant to view its details
+  const handleSelectFavourite = (favPlant: PlantResult) => {
+    setResult(favPlant); // Display the selected favourite's details
+    setError(null); // Clear any previous error
+    setIsLoading(false); // Ensure loading is off
+    // Optional: scroll to the results card?
+    // const resultCard = document.getElementById('plant-result-card');
+    // resultCard?.scrollIntoView({ behavior: 'smooth' });
+    toast({
+      title: `Viewing ${favPlant.commonName}`,
+      description: 'Displaying saved details for this plant.',
+    })
+  };
+
 
   // Check if the current result is a favourite
   const isCurrentResultFavourite = React.useMemo(() => {
@@ -309,7 +329,7 @@ export default function PlantIdentifier() {
           <Leaf className="h-6 w-6 md:h-8 md:w-8" /> Plant Identifier & Care Guide
         </CardTitle>
         <CardDescription className="text-primary-foreground/90 mt-1">
-          Upload an image or use your camera to identify a plant, check its health, and get detailed care tips.
+          Upload an image or use your camera to identify a plant, check its health, and get detailed care tips. View your saved favourites.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-4 md:p-6 space-y-4">
@@ -318,7 +338,7 @@ export default function PlantIdentifier() {
             htmlFor="plant-image-upload"
             className="text-base font-medium"
           >
-            Plant Image
+            Identify New Plant
           </Label>
           <div className="flex flex-col sm:flex-row gap-2">
             <Button
@@ -403,7 +423,7 @@ export default function PlantIdentifier() {
 
         {/* Identification Result Card */}
         {result && !isLoading && !error && ( // Display result only on success (no loading, no error)
-          <Card className="mt-6 border-primary shadow-md">
+          <Card id="plant-result-card" className="mt-6 border-primary shadow-md"> {/* Added ID for potential scrolling */}
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div className="flex-1">
                 <CardTitle className="text-xl md:text-2xl flex items-center gap-2 flex-wrap">
@@ -547,13 +567,13 @@ export default function PlantIdentifier() {
             <Leaf className="mx-auto h-12 w-12 mb-2" />
             <p>
               Upload an image or use the camera to start identifying your
-              plant!
+              plant! You can also view details for your favourite plants below.
             </p>
           </div>
         )}
 
         {/* Display Favourites Section */}
-        {favourites.length > 0 && (
+        {/* Always render the Favourites card, but conditionally show content */}
           <Card className="mt-6 border-accent">
             <CardHeader>
               <CardTitle className="text-xl md:text-2xl flex items-center gap-2">
@@ -563,33 +583,42 @@ export default function PlantIdentifier() {
             </CardHeader>
             <CardContent>
               {favourites.length === 0 ? (
-                 <p className="text-muted-foreground text-center">No favourite plants yet.</p>
+                 <p className="text-muted-foreground text-center">No favourite plants yet. Add some using the heart icon after identifying a plant.</p>
               ) : (
                 <ul className="space-y-2">
                   {favourites.map((fav, index) => (
                     <li
-                      key={`${fav.commonName}-${index}`} // Use index for key stability if names aren't unique enough
-                      className="flex justify-between items-center p-2 border-b last:border-b-0 hover:bg-secondary/50 rounded-md transition-colors"
+                      key={`${fav.commonName}-${index}`} // Use index for key stability
+                      className="flex justify-between items-center p-2 border-b last:border-b-0 hover:bg-secondary/50 rounded-md transition-colors group" // Added group class
                     >
                       <span className="font-medium">{fav.commonName}</span>
-                      {/* Maybe add a small detail like isWeed status? */}
-                      {/* <Badge variant={fav.isWeed ? 'destructive' : 'secondary'} className="ml-2 text-xs">{fav.isWeed ? 'Weed' : 'Plant'}</Badge> */}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleToggleFavourite(fav)}
-                        aria-label={`Remove ${fav.commonName} from Favourites`}
-                        className="text-muted-foreground hover:text-destructive"
-                      >
-                        <XCircle className="h-5 w-5" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                         <Button
+                           variant="ghost"
+                           size="icon"
+                           onClick={() => handleSelectFavourite(fav)} // Use new handler
+                           aria-label={`View details for ${fav.commonName}`}
+                           className="text-muted-foreground hover:text-primary"
+                         >
+                           <Info className="h-5 w-5" />
+                         </Button>
+                         <Button
+                           variant="ghost"
+                           size="icon"
+                           onClick={() => handleToggleFavourite(fav)}
+                           aria-label={`Remove ${fav.commonName} from Favourites`}
+                           className="text-muted-foreground hover:text-destructive"
+                         >
+                           <XCircle className="h-5 w-5" />
+                         </Button>
+                      </div>
                     </li>
                   ))}
                 </ul>
               )}
             </CardContent>
           </Card>
-        )}
+
       </CardContent>
       <CardFooter className="p-4 md:p-6 bg-secondary/30 border-t">
          <p className="text-xs text-muted-foreground text-center w-full">
