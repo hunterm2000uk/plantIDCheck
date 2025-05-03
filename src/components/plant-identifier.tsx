@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import Image from 'next/image';
+import NextImage from 'next/image'; // Renamed import
 import {
   identifyPlant,
   type IdentifyPlantOutput,
@@ -49,6 +49,40 @@ const readFileAsDataURI = (file: File): Promise<string> => {
     reader.onerror = (error) => reject(error); // Pass the actual error
     reader.readAsDataURL(file);
   });
+};
+
+// Helper function to resize and compress the image
+const resizeImage = (
+  file: File,
+  maxWidth: number,
+  maxHeight: number,
+  quality: number
+): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image(); // Use window.Image explicitly to ensure browser API
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxWidth || height > maxHeight) {
+        const ratio = Math.min(maxWidth / width, maxHeight / height);
+        width *= ratio;
+        height *= ratio;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(img, 0, 0, width, height);
+
+      const dataURI = canvas.toDataURL('image/jpeg', quality);
+      resolve(dataURI);
+    };
+    img.onerror = (error) => reject(error); // Use the error object
+    img.src = URL.createObjectURL(file);
+  });
+
 };
 
 export default function PlantIdentifier() {
@@ -106,21 +140,41 @@ export default function PlantIdentifier() {
       setImageDataUri(null);
 
       try {
-        const dataUri = await readFileAsDataURI(file);
-        setImagePreview(dataUri); // Set preview only after successful read
-        setImageDataUri(dataUri);
-        await identifyPlantAndUpdateState(dataUri); // Proceed with identification
+        // Try resizing first
+        let dataUriToUse: string;
+        try {
+          dataUriToUse = await resizeImage(file, 800, 600, 0.7);
+        } catch (resizeError) {
+          console.warn('Image resizing failed, falling back to original:', resizeError);
+          // If resizing fails, read the original file directly
+          try {
+             dataUriToUse = await readFileAsDataURI(file);
+          } catch (readError) {
+             console.error('Error reading original file:', readError);
+             setError(`Failed to read image: ${readError instanceof Error ? readError.message : 'Please try again.'}`);
+             setIsLoading(false);
+             setImagePreview(null);
+             setImageDataUri(null);
+             return; // Exit if both resize and read fail
+          }
+        }
+
+        setImagePreview(dataUriToUse); // Set preview
+        setImageDataUri(dataUriToUse); // Set data URI for AI
+        await identifyPlantAndUpdateState(dataUriToUse); // Proceed with identification
+
       } catch (err) {
-        console.error('Error processing file:', err); // Log file reading error
+        // This catch block might be less likely to be hit now, but kept as a fallback
+        console.error('Error processing file:', err); // Log file processing error
         // Display a specific error for file processing failure
-        setError(`Failed to read image: ${err instanceof Error ? err.message : 'Please try again.'}`);
+        setError(`Failed to process image: ${err instanceof Error ? err.message : 'Please try again.'}`);
         setIsLoading(false);
         // Ensure image state is cleared on file read error
         setImagePreview(null);
         setImageDataUri(null);
       } finally {
          // Reset file input to allow re-uploading the same file
-        if (event.target) {
+         if (event.target) {
             event.target.value = "";
         }
       }
@@ -277,7 +331,8 @@ export default function PlantIdentifier() {
 
         {imagePreview && (
           <div className="relative group mt-4 border border-border rounded-md p-2 bg-secondary/30">
-            <Image
+            {/* Use renamed NextImage component */}
+            <NextImage
               src={imagePreview}
               alt="Uploaded plant preview"
               width={600}
