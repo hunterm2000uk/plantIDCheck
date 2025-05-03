@@ -32,7 +32,7 @@ const IdentifyPlantOutputSchema = z.object({
     height: z.string().optional().describe('Typical mature height of the plant (e.g., "1-2 ft", "Up to 10m").'),
     spread: z.string().optional().describe('Typical mature spread or width of the plant (e.g., "2-3 ft", "5m wide").'),
     growthRate: z.string().optional().describe('The typical growth rate (e.g., "Slow", "Moderate", "Fast").'),
-    floweringInfo: z.string().optional().describe('Information about its flowers (e.g., "Blooms in spring with white flowers", "Insignificant flowers").'),
+    floweringInfo: z.string().optional().describe('Information about its flowers, including typical blooming season or months (e.g., "Blooms in spring (March-May) with white flowers", "Insignificant flowers").'), // Updated description
     pruningInfo: z.string().optional().describe('Basic instructions or tips on how and when to prune the plant.'),
 });
 // Output type directly maps to the schema
@@ -65,9 +65,9 @@ const plantAnalysisPrompt = ai.definePrompt({
   3.  **Assess Health:** Evaluate the plant's health based *only* on what you see in the image. Describe its condition (e.g., Healthy, Needs Water, Yellowing Leaves, Possible Pest Damage, Fungal Spots, etc.).
   4.  **Propose Actions:** Suggest specific, actionable steps the user can take *based on your visual health assessment* to improve the plant's condition. If the plant looks healthy, suggest routine care actions.
   5.  **Provide General Care:** Give brief, general care instructions suitable for this type of plant (assuming it's healthy).
-  6.  **Botanical Details (Optional):** If readily available, provide the typical mature height, spread, growth rate, basic flowering information, and basic pruning advice for this plant. If not readily available, omit these fields or set them to null in the JSON.
+  6.  **Botanical Details (Optional):** If readily available, provide the typical mature height, spread, growth rate, basic flowering information (including **typical season/months**, e.g., "Blooms in spring (March-May) with white flowers"), and basic pruning advice for this plant. If not readily available, omit these fields or set them to null in the JSON.
 
-  Respond *only* with a JSON object matching the output schema. Ensure the JSON is valid.`, // Added reminder for valid JSON and instruction for botanical details
+  Respond *only* with a JSON object matching the output schema. Ensure the JSON is valid.`, // Updated flowering info instruction
 });
 
 const identifyPlantFlow = ai.defineFlow<
