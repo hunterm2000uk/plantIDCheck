@@ -41,6 +41,8 @@ import {
   CalendarDays, // Icon for Seasons/Time
   ClipboardCheck, // Icon for Care/Instructions
   Grape, // Icon for Harvest
+  BookOpen, // Icon for Latin name
+  Tags, // Icon for Alternative Names
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -278,20 +280,28 @@ export default function PlantIdentifier() {
   const handleToggleFavourite = (plant: PlantResult | null) => {
     if (!plant || !plant.commonName) return;
 
-    const isFavourite = favourites.some(
-      (fav) => fav.commonName === plant.commonName
-    );
+    // Use a combination of commonName and latinName for better uniqueness, if latinName exists
+    const plantId = plant.latinName ? `${plant.commonName}-${plant.latinName}` : plant.commonName;
+    const isFavourite = favourites.some((fav) => {
+        const favId = fav.latinName ? `${fav.commonName}-${fav.latinName}` : fav.commonName;
+        return favId === plantId;
+    });
+
 
     if (isFavourite) {
       setFavourites((prev) =>
-        prev.filter((fav) => fav.commonName !== plant.commonName)
+        prev.filter((fav) => {
+            const favId = fav.latinName ? `${fav.commonName}-${fav.latinName}` : fav.commonName;
+            return favId !== plantId;
+        })
       );
       toast({
         title: 'Removed from Favourites',
         description: `${plant.commonName} removed from your favourites.`,
       });
        // If the currently displayed result was the one removed, clear it
-      if (result?.commonName === plant.commonName) {
+       const currentResultId = result?.latinName ? `${result.commonName}-${result.latinName}` : result?.commonName;
+      if (currentResultId === plantId) {
         // Don't clear imagePreview or imageDataUri, just the result display
         setResult(null);
       }
@@ -327,7 +337,11 @@ export default function PlantIdentifier() {
   // Check if the current result is a favourite
   const isCurrentResultFavourite = React.useMemo(() => {
     if (!result || !result.commonName) return false;
-    return favourites.some((fav) => fav.commonName === result.commonName);
+    const currentResultId = result.latinName ? `${result.commonName}-${result.latinName}` : result.commonName;
+    return favourites.some((fav) => {
+         const favId = fav.latinName ? `${fav.commonName}-${fav.latinName}` : fav.commonName;
+         return favId === currentResultId;
+    });
   }, [result, favourites]);
 
   return (
@@ -432,23 +446,29 @@ export default function PlantIdentifier() {
         {/* Identification Result Card */}
         {result && !isLoading && !error && ( // Display result only on success (no loading, no error)
           <Card id="plant-result-card" className="mt-6 border-primary shadow-md"> {/* Added ID for potential scrolling */}
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardHeader className="flex flex-row items-start justify-between pb-2 gap-2">
               <div className="flex-1">
                 <CardTitle className="text-xl md:text-2xl flex items-center gap-2 flex-wrap">
                   {result.commonName || 'Plant Identified'}
-                  <Badge
-                    variant={result.isWeed ? 'destructive' : 'secondary'}
-                    className="ml-2 whitespace-nowrap"
-                  >
-                    {result.isWeed ? 'Weed' : 'Not a Weed'}
-                  </Badge>
-                  {/* Optional: Badge for edible fruit */}
                    {result.isEdibleFruit === true && (
-                     <Badge variant="secondary" className="ml-2 whitespace-nowrap bg-accent text-accent-foreground">
+                     <Badge variant="secondary" className="whitespace-nowrap bg-accent text-accent-foreground">
                        <Apple className="mr-1 h-3 w-3" /> Edible Fruit
                      </Badge>
                    )}
+                    <Badge
+                      variant={result.isWeed ? 'destructive' : 'secondary'}
+                      className="ml-auto whitespace-nowrap md:ml-2" // Move weed badge towards right on smaller screens
+                    >
+                      {result.isWeed ? 'Weed' : 'Not a Weed'}
+                    </Badge>
                 </CardTitle>
+                 {/* Latin Name - Display if available */}
+                 {result.latinName && (
+                   <p className="text-sm text-muted-foreground italic flex items-center gap-1 mt-1">
+                     <BookOpen className="h-4 w-4 flex-shrink-0" />
+                     {result.latinName}
+                   </p>
+                 )}
               </div>
               <Button
                 variant="ghost"
@@ -459,7 +479,7 @@ export default function PlantIdentifier() {
                     ? 'Remove from Favourites'
                     : 'Add to Favourites'
                 }
-                className="text-accent hover:text-accent/80"
+                className="text-accent hover:text-accent/80 flex-shrink-0" // Prevent button from shrinking
               >
                 <Heart
                   className={`h-6 w-6 ${
@@ -471,6 +491,22 @@ export default function PlantIdentifier() {
               </Button>
             </CardHeader>
             <CardContent className="space-y-4 text-sm md:text-base pt-4">
+                {/* Alternative Names - Display if available */}
+               {result.alternativeNames && result.alternativeNames.length > 0 && (
+                 <div className="flex items-start gap-3 p-3 bg-secondary/30 rounded-md border border-border">
+                     <Tags className="h-5 w-5 text-accent flex-shrink-0 mt-1" />
+                     <div>
+                       <h4 className="font-medium">Also Known As:</h4>
+                       <p className="text-muted-foreground">
+                         {result.alternativeNames.join(', ')}
+                       </p>
+                     </div>
+                 </div>
+               )}
+               {/* Conditionally render separator if alternative names exist */}
+               {result.alternativeNames && result.alternativeNames.length > 0 && <Separator className="my-4" />}
+
+
               {/* Health and Actions Section */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  {/* Health Status */}
@@ -640,34 +676,41 @@ export default function PlantIdentifier() {
                  <p className="text-muted-foreground text-center">No favourite plants yet. Add some using the heart icon after identifying a plant.</p>
               ) : (
                 <ul className="space-y-2">
-                  {favourites.map((fav, index) => (
-                    <li
-                      key={`${fav.commonName}-${index}`} // Use index for key stability
-                      className="flex justify-between items-center p-2 border-b last:border-b-0 hover:bg-secondary/50 rounded-md transition-colors group" // Added group class
-                    >
-                      <span className="font-medium">{fav.commonName}</span>
-                      <div className="flex items-center gap-1">
-                         <Button
-                           variant="ghost"
-                           size="icon"
-                           onClick={() => handleSelectFavourite(fav)} // Use new handler
-                           aria-label={`View details for ${fav.commonName}`}
-                           className="text-muted-foreground hover:text-primary"
-                         >
-                           <Info className="h-5 w-5" />
-                         </Button>
-                         <Button
-                           variant="ghost"
-                           size="icon"
-                           onClick={() => handleToggleFavourite(fav)}
-                           aria-label={`Remove ${fav.commonName} from Favourites`}
-                           className="text-muted-foreground hover:text-destructive"
-                         >
-                           <XCircle className="h-5 w-5" />
-                         </Button>
-                      </div>
-                    </li>
-                  ))}
+                  {favourites.map((fav, index) => {
+                     // Generate a stable key using commonName and potentially latinName
+                     const favKey = fav.latinName ? `${fav.commonName}-${fav.latinName}-${index}` : `${fav.commonName}-${index}`;
+                     return (
+                        <li
+                          key={favKey}
+                          className="flex justify-between items-center p-2 border-b last:border-b-0 hover:bg-secondary/50 rounded-md transition-colors group" // Added group class
+                        >
+                          <div className="flex flex-col">
+                             <span className="font-medium">{fav.commonName}</span>
+                             {fav.latinName && <span className="text-xs text-muted-foreground italic">{fav.latinName}</span>}
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                             <Button
+                               variant="ghost"
+                               size="icon"
+                               onClick={() => handleSelectFavourite(fav)} // Use new handler
+                               aria-label={`View details for ${fav.commonName}`}
+                               className="text-muted-foreground hover:text-primary"
+                             >
+                               <Info className="h-5 w-5" />
+                             </Button>
+                             <Button
+                               variant="ghost"
+                               size="icon"
+                               onClick={() => handleToggleFavourite(fav)}
+                               aria-label={`Remove ${fav.commonName} from Favourites`}
+                               className="text-muted-foreground hover:text-destructive"
+                             >
+                               <XCircle className="h-5 w-5" />
+                             </Button>
+                          </div>
+                        </li>
+                     );
+                  })}
                 </ul>
               )}
             </CardContent>
