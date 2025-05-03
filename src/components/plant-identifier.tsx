@@ -187,7 +187,7 @@ export default function PlantIdentifier() {
         // Try resizing first
         let dataUriToUse: string;
         try {
-          dataUriToUse = await resizeImage(file, 800, 600, 0.7);
+          dataUriToUse = await resizeImage(file, 800, 600, 0.8);
         } catch (resizeError) {
           console.warn('Image resizing failed, falling back to original:', resizeError);
           // If resizing fails, read the original file directly
