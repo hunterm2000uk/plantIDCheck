@@ -43,12 +43,19 @@ import {
   Grape, // Icon for Harvest
   BookOpen, // Icon for Latin name
   Tags, // Icon for Alternative Names
+  RefreshCw, // Icon for Retry
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 // Type definition for the plant identification result
 // Includes all fields from IdentifyPlantOutput
 type PlantResult = IdentifyPlantOutput;
+
+// Define a type for the error state
+type ErrorState = {
+  message: string;
+  retryable: boolean;
+} | null;
 
 // LocalStorage key
 const FAVORITES_STORAGE_KEY = 'plantIdentifierFavorites';
@@ -127,7 +134,7 @@ export default function PlantIdentifier() {
   const [imageDataUri, setImageDataUri] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
   const [result, setResult] = React.useState<PlantResult | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<ErrorState>(null); // Updated error state type
   const [favourites, setFavourites] = React.useState<PlantResult[]>([]);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
@@ -163,7 +170,7 @@ export default function PlantIdentifier() {
     const file = event.target.files?.[0];
     if (file) {
       if (!file.type.startsWith('image/')) {
-        setError('Please upload a valid image file (e.g., JPG, PNG, WEBP).');
+        setError({ message: 'Please upload a valid image file (e.g., JPG, PNG, WEBP).', retryable: false }); // Set non-retryable error
         setImagePreview(null);
         setImageDataUri(null);
         setResult(null);
@@ -188,7 +195,8 @@ export default function PlantIdentifier() {
              dataUriToUse = await readFileAsDataURI(file);
           } catch (readError) {
              console.error('Error reading original file:', readError);
-             setError(`Failed to read image: ${readError instanceof Error ? readError.message : 'Please try again.'}`);
+             // Set non-retryable error for file read failure
+             setError({ message: `Failed to read image: ${readError instanceof Error ? readError.message : 'Please try again.'}`, retryable: false });
              setIsLoading(false);
              setImagePreview(null);
              setImageDataUri(null);
@@ -203,8 +211,8 @@ export default function PlantIdentifier() {
       } catch (err) {
         // This catch block might be less likely to be hit now, but kept as a fallback
         console.error('Error processing file:', err); // Log file processing error
-        // Display a specific error for file processing failure
-        setError(`Failed to process image: ${err instanceof Error ? err.message : 'Please try again.'}`);
+        // Display a specific, non-retryable error for file processing failure
+        setError({ message: `Failed to process image: ${err instanceof Error ? err.message : 'Please try again.'}`, retryable: false });
         setIsLoading(false);
         // Ensure image state is cleared on file read error
         setImagePreview(null);
@@ -237,20 +245,34 @@ export default function PlantIdentifier() {
       // Case 2: AI call succeeded but returned null (couldn't identify)
       else {
         setResult(null);
-        // Provide a more specific message for identification failure
-        setError('Could not identify the plant. It might not be a plant or the image is unclear. Please try a different image.');
+        // Provide a specific, non-retryable message for identification failure
+        setError({ message: 'Could not identify the plant. It might not be a plant or the image is unclear. Please try a different image.', retryable: false });
         console.warn('AI analysis returned null or no plantIdentification.'); // Log warning
       }
     } catch (err) {
       // Case 3: Error during the AI identification call (network, API key, etc.)
       console.error('AI Identification error:', err); // Log the detailed error object
-      // Display a user-friendly message including the error's message if available
-      setError(
-        `An error occurred during analysis: ${err instanceof Error ? err.message : 'Please check your connection and try again.'}`
-      );
+      // Set a retryable error message
+      setError({
+        message: `An error occurred during analysis: ${err instanceof Error ? err.message : 'Please check your connection and try again.'}`,
+        retryable: true, // Mark as retryable
+      });
       setResult(null); // Ensure result is cleared on error
     } finally {
       setIsLoading(false); // Stop loading indicator regardless of outcome
+    }
+  };
+
+  // Function to handle the retry action
+  const handleRetry = () => {
+    if (imageDataUri) {
+      toast({
+        title: 'Retrying Analysis',
+        description: 'Attempting to analyze the plant image again.',
+      });
+      identifyPlantAndUpdateState(imageDataUri);
+    } else {
+        setError({ message: 'Cannot retry without an image.', retryable: false}); // Should not happen if button is shown correctly
     }
   };
 
@@ -267,7 +289,7 @@ export default function PlantIdentifier() {
     setImagePreview(null);
     setImageDataUri(null);
     setResult(null);
-    setError(null);
+    setError(null); // Clear error state
     setIsLoading(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (cameraInputRef.current) cameraInputRef.current.value = '';
@@ -439,7 +461,21 @@ export default function PlantIdentifier() {
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Error</AlertTitle>
             {/* Display the detailed error message */}
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>{error.message}</AlertDescription>
+            {/* Show retry button only if the error is retryable and an image exists */}
+            {error.retryable && imageDataUri && (
+              <div className="mt-3">
+                <Button
+                    variant="secondary"
+                    onClick={handleRetry}
+                    disabled={isLoading} // Disable retry while loading
+                    className="w-full sm:w-auto"
+                >
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Retry Analysis
+                </Button>
+              </div>
+            )}
           </Alert>
         )}
 
