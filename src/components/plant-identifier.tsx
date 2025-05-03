@@ -59,7 +59,7 @@ const resizeImage = (
   quality: number
 ): Promise<string> => {
   return new Promise((resolve, reject) => {
-    const img = new window.Image(); // Use window.Image explicitly to ensure browser API
+    const img = new window.Image(); 
     img.onload = () => {
       const canvas = document.createElement('canvas');
       let width = img.width;
