@@ -704,7 +704,7 @@ export default function PlantIdentifier() {
             <CardHeader>
               <CardTitle className="text-xl md:text-2xl flex items-center gap-2">
                 <Heart className="h-6 w-6 text-destructive fill-current" /> Your
-                Favourite Plants
+                Plant Collection
               </CardTitle>
             </CardHeader>
             <CardContent>
