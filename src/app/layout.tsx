@@ -16,6 +16,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        {/* Add Google AdSense verification tag */}
+        <meta name="google-adsense-account" content="ca-pub-5706907294777860" />
+      </head>
       {/* Apply GeistSans variable, remove GeistMono as it's unavailable */}
       <body className={`${GeistSans.variable} antialiased font-sans`}>
         {children}
